@@ -1,0 +1,55 @@
+---
+# tasks file for webserver---
+
+  - name: apt update
+    apt:
+      upgrade: yes
+      update_cache: yes
+
+  - name: Download node.JS
+    get_url:
+      url: https://deb.nodesource.com/setup_8.x
+      dest: /opt
+      mode: 755
+
+  - name: build node.JS
+    command: /opt/setup_8.x
+
+  - name: Install node.JS
+    apt:
+      name: nodejs
+      state: present
+
+  - name: Install essentials tools
+    apt:
+      name: build-essential 
+      state: present
+
+  - name: Install GIT
+    apt:
+      name: git
+      state: present
+
+  - name: Obtain wiki.js version
+    uri:
+      url: https://beta.requarks.io/api/version/stable
+      return_content: yes
+    register: VERSION
+
+  - name: download wiki.js
+    shell: "curl -L -s -S https://github.com/Requarks/wiki/releases/download/v{{VERSION.content}}/wiki-js.tar.gz | sudo tar xz -C ."
+
+  - name: download node_modules
+    shell: "curl -L -s -S https://github.com/Requarks/wiki/releases/download/v{{VERSION.content}}/node_modules.tar.gz | sudo tar xz -C ."
+
+  - name: add mongodb IP in hosts
+    lineinfile:
+      path: /etc/hosts
+      line: "192.168.33.100  mongodb  mongodb"
+
+  - name: j2
+    template: src=config.j2 dest=./config.yml
+
+  - name: run Wiki.JS
+    command: node wiki start
+
