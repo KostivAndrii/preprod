@@ -1,4 +1,4 @@
-$resourceGroup             = "RG02"
+$resourceGroup             = "RG01"
 $location                  = "West Europe"
 $VMSize                    = 'Standard_DS1_v2'
 $VMnames                   = $resourceGroup + "VM"
