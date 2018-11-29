@@ -30,3 +30,15 @@ subcommand to syntactically validate a template file. The rest of the command sw
 , making it easy to include that in a workflow.
 
 PowerShell can do exactly the same, replacing New-AzureRmResourceGroupDeployment with Test-AzureRmResourceGroupDeployment.
+
+
+Using output
+$storageAccount = (New-AzureRmResourceGroupDeployment -Name $job -storageAccountPrefix $storageAccountPrefix -TemplateFile $template -ResourceGroupName $rg).Outputs.storageAccount.Value
+echo $storageAccount
+
+$rg="lab1"
+$job = 'job.' + ((Get-Date).ToUniversalTime()).tostring("MMddyy.HHmm")
+$template="C:\myTemplates\lab1\azuredeploy.json"
+$parms="c:\myTemplates\lab1\azuredeploy.parameters.json"
+$storageAccount = (New-AzureRmResourceGroupDeployment -Name $job -TemplateParameterFile $parms -TemplateFile $template -ResourceGroupName $rg).Outputs.storageAccount.Value
+echo "Storage account $storageAccount has been created."

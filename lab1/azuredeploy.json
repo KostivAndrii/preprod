@@ -1,1 +1,49 @@
-{"$schema":"https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#","contentVersion":"1.0.0.0","parameters":{"storageAccountPrefix":{"type":"string","defaultValue":"akostivsa","maxLength":11,"metadata":{"description":"Prefix for storage account name"}},"accountType":{"type":"string","defaultValue":"Standard_LRS","allowedValues":["Standard_LRS","Premium_LRS","Standard_RAGRS"],"metadata":{"description":"Sku Type"}}},"variables":{"storageAccount":"[toLower(concat(parameters('storageAccountPrefix'),uniqueString(resourceGroup().id)))]"},"resources":[{"type":"Microsoft.Storage/storageAccounts","apiVersion":"2015-06-15","name":"[variables('storageAccount')]","location":"[resourceGroup().location]","tags":{"displayName":"[variables('storageAccount')]"},"properties":{"accountType":"[parameters('accountType')]"}}],"outputs":{"storageaccount":{"type":"string","value":"[variables('storageAccount')]"}}}
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "storageAccountPrefix": {
+            "type": "string",
+            "defaultValue": "akostivsa",
+            "maxLength": 11,
+            "metadata": {
+                "description": "Prefix for storage account name"
+            }
+        },
+        "accountType": {
+            "type": "string",
+            "defaultValue": "Standard_LRS",
+            "allowedValues": [
+                "Standard_LRS",
+                "Premium_LRS",
+                "Standard_RAGRS"
+            ],
+            "metadata": {
+                "description": "Sku Type"
+            }
+        }
+    },
+    "variables": {
+        "storageAccount": "[toLower(concat(parameters('storageAccountPrefix'),uniqueString(resourceGroup().id)))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2015-06-15",
+            "name": "[variables('storageAccount')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "[variables('storageAccount')]"
+            },
+            "properties": {
+                "accountType": "[parameters('accountType')]"
+            }
+        }
+    ],
+    "outputs": {
+        "storageAccountOUT": {
+            "type": "string",
+            "value": "[variables('storageAccount')]"
+        }
+    }
+}

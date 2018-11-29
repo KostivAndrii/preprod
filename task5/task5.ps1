@@ -1,143 +1,86 @@
-﻿# To decrease project starting time some job working in background
-# VM and Application Gateway are created in background
-# provision script wait when VM start to configure started VM
-# 
+﻿$resourceGroup             = "RG003"
+$location                  = "East US"
+$VMSize                    = 'Standard_DS1_v2'
+$VMnames                   = $resourceGroup + "VM"
+$ManDataDiskNameW          = $resourceGroup + "MAN_DATADISK"
 
-# determine dir where should be var.ps1 and provision script
-$scriptDir = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent 
+$VNet_Name                 = $resourceGroup + "_VNet"
+$VNet_Address              = '10.0.0.0/16'
+$SubNet_Name               = $resourceGroup + "_Subnet"
+$SubNet_Address            = '10.0.1.0/24'
+$NSG_Name                  = $resourceGroup + "_NSG"
+$PublicIPAddress_Name      = $resourceGroup + "_PublicIPAddress"
+$AvailabilitySet_name      = $resourceGroup + "_AvailabilitySet"
+$NIC_name                  = $resourceGroup + "_NIC"
+$StorageTypeManaged = "Standard_LRS"
+$DataDiskSize = 10
 
-# loading variables
-$vars_file = $scriptDir + '\vars.ps1'
-if(![System.IO.File]::Exists($vars_file)){
-  Write-Host "Absent var script in  $vars_file " -ForegroundColor DarkYellow
-  exit 1
-}
-. $scriptDir\vars.ps1
+$FrontendIPConfig          = "FrontendIPConfig"
 
-# checking provision script
-$provision_script = $scriptDir + '\' + $VM_provision_script_name
-if(![System.IO.File]::Exists($provision_script)){
-  Write-Host "Absent provision script in  $provision_script " -ForegroundColor DarkYellow
-  $ProvisionApsent = $true  
-  $BackendPoolPort = 80
-}
+$BackendPool_name          = "BackendPool"
+$FrontendPortWeb              = 80
+$BackendPortWeb               = 8080
+$LoadBalancer_Name         = $resourceGroup + "LB"
+$LoadBalancerRuleWeb       = 'LBRuleWeb'
 
-$a = Get-Date -UFormat %T
-Write-Host "Starting to make project $resourceGroup at $a " -ForegroundColor DarkYellow
+# AG probe setiing
+$probe_name                = "probe01"
+$ProbeProtocol             = "Http"
+$ProbePort                 = 80
+$IntervalTime              = 5
+$ProbeCount        = 2
+# windows VM init setting
+$WPublisherName            = 'MicrosoftWindowsServer' 
+$WOffer                    = 'WindowsServer' 
+$WSkus                     = '2016-Datacenter' 
+$WVersion                  = 'latest'
+$UserName = 'azureuser'
+$Passwd = 'Pa$$w0rd'
+
+$provision_script = 'customiis.ps1'
 
 $Password = ConvertTo-SecureString $Passwd -AsPlainText -Force
 $cred = New-Object System.Management.Automation.PSCredential ($UserName, $Password)
+$diskConfig = New-AzureRmDiskConfig -SkuName $StorageTypeManaged -Location $location -CreateOption Empty -DiskSizeGB $DataDiskSize
 
-
-# Create a resource group
-
-if ( ! $(Get-AzureRmResourceGroup -Name $resourceGroup -ErrorAction Ignore)) {
-            New-AzureRmResourceGroup -Name $resourceGroup -Location $location
-}
-
-
-# Create network resources
-
-# Create a virtual network.
+New-AzureRmResourceGroup -Name $resourceGroup -Location $location
 $subnet = New-AzureRmVirtualNetworkSubnetConfig -Name $SubNet_Name -AddressPrefix $SubNet_Address
-##$backendSubnetConfig = New-AzureRmVirtualNetworkSubnetConfig -Name $BackendSubnet_Name -AddressPrefix $BackendSubnet_Address
-
-$vnet = Get-AzureRmVirtualNetwork -ResourceGroupName $resourceGroup -Name $VNet_Name -ErrorAction Ignore
-if( ! $vnet ) {
-    $vnet = New-AzureRmVirtualNetwork -ResourceGroupName $resourceGroup -Location $location -Name $VNet_Name -AddressPrefix $VNet_Address  `
-      -Subnet $subnet
-}
-
-# Create a public IP address.
-$publicIp = Get-AzureRmPublicIpAddress -ResourceGroupName $resourceGroup -Name $PublicIPAddressName -ErrorAction Ignore
-if( ! $publicIp ) {
-        $publicIp = New-AzureRmPublicIpAddress -ResourceGroupName $resourceGroup -Location $location  `
-            -Name $PublicIPAddressName -AllocationMethod Dynamic
-}
-## $lbPIP = New-AzureRmPublicIpAddress -ResourceGroupName $resourceGroup -Location $location -AllocationMethod "Static" -Name "myLBPIP"
-
-# Create a front-end IP configuration for the website.
-$feip = New-AzureRmLoadBalancerFrontendIpConfig -Name 'myFrontEndPool' -PublicIpAddress $publicIp
-
-# Create the back-end address pool.
+$vnet = New-AzureRmVirtualNetwork -ResourceGroupName $resourceGroup -Name $VNet_Name -AddressPrefix $VNet_Address -Location $location -Subnet $subnet
+$publicIp = New-AzureRmPublicIpAddress -ResourceGroupName $resourceGroup -Name $PublicIPAddress_Name -Location $location -AllocationMethod Dynamic
+$feip = New-AzureRmLoadBalancerFrontendIpConfig -Name $FrontendIPConfig -PublicIpAddress $publicIp
 $bepool = New-AzureRmLoadBalancerBackendAddressPoolConfig -Name $BackendPool_name
+$probe = New-AzureRmLoadBalancerProbeConfig -Name $probe_name -Protocol $ProbeProtocol -Port $ProbePort -RequestPath / -IntervalInSeconds $IntervalTime -ProbeCount $ProbeCount
+$rule = New-AzureRmLoadBalancerRuleConfig -Name $LoadBalancerRuleWeb -Protocol Tcp -Probe $probe -FrontendPort $FrontendPortWeb -BackendPort $BackendPortWeb -FrontendIpConfiguration $feip -BackendAddressPool $bePool
+$lb = New-AzureRmLoadBalancer -ResourceGroupName $resourceGroup -Name $LoadBalancer_Name  -Location $location `
+  -FrontendIpConfiguration $feip -BackendAddressPool $bepool -Probe $probe -LoadBalancingRule $rule 
 
-# Creates a load balancer probe on port 80.
-$probe = New-AzureRmLoadBalancerProbeConfig -Name $probe_name -Protocol Http -Port 80 `
-  -RequestPath / -IntervalInSeconds 360 -ProbeCount 5
+$rule1 = New-AzureRmNetworkSecurityRuleConfig -Name 'NSGRuleHTTP' -Description 'Allow HTTP' -Access Allow -Protocol Tcp -Direction Inbound -Priority 2000 `
+  -SourceAddressPrefix Internet -SourcePortRange * -DestinationAddressPrefix * -DestinationPortRange $BackendPortWeb
 
-# Creates a load balancer rule for port 80.
-$rule = New-AzureRmLoadBalancerRuleConfig -Name 'myLoadBalancerRuleWeb' -Protocol Tcp `
-  -Probe $probe -FrontendPort 80 -BackendPort 80 `
-  -FrontendIpConfiguration $feip -BackendAddressPool $bePool
+$nsg = New-AzureRmNetworkSecurityGroup -ResourceGroupName $resourceGroup -Location $location -Name $NSG_Name -SecurityRules $rule1
 
-# Create three NAT rules for port 3389.
-$natrule1 = New-AzureRmLoadBalancerInboundNatRuleConfig -Name 'myLoadBalancerRDP1' -FrontendIpConfiguration $feip `
-  -Protocol tcp -FrontendPort 4221 -BackendPort 3389
+$AvailabilitySet = New-AzureRmAvailabilitySet -Location $location -Name $AvailabilitySet_name -ResourceGroupName $resourceGroup -Sku aligned -PlatformFaultDomainCount 2 -PlatformUpdateDomainCount 2
 
-$natrule2 = New-AzureRmLoadBalancerInboundNatRuleConfig -Name 'myLoadBalancerRDP2' -FrontendIpConfiguration $feip `
-  -Protocol tcp -FrontendPort 4222 -BackendPort 3389
+for ($i=1; $i -le 2; $i++)
+{
+  $DataDisk_w = New-AzureRmDisk -DiskName $ManDataDiskNameW$i -Disk $diskConfig -ResourceGroupName $resourceGroup
+    
+  $nic = New-AzureRmNetworkInterface -Name $NIC_name$i -ResourceGroupName $resourceGroup -Location $location -LoadBalancerBackendAddressPool $bepool -NetworkSecurityGroup $nsg -Subnet $vnet.Subnets[0]
 
-# Create a load balancer.
-$lb = New-AzureRmLoadBalancer -ResourceGroupName $resourceGroup -Name $LoadBalancer_Name -Location $location `
-  -FrontendIpConfiguration $feip -BackendAddressPool $bepool `
-  -Probe $probe -LoadBalancingRule $rule -InboundNatRule $natrule1,$natrule2
+  $vm = New-AzureRmVMConfig -VMName $VMnames$i -VMSize $VMSize -AvailabilitySetID $AvailabilitySet.Id
+  $vm = Set-AzureRmVMOperatingSystem -VM $vm -Windows -ComputerName $VMnames$i -Credential $cred
+  $vm = Set-AzureRmVMSourceImage -VM $vm -PublisherName $WPublisherName -Offer $WOffer -Skus $WSkus -Version $WVersion
+  $vm = Add-AzureRmVMDataDisk -VM $vm -Name $ManDataDiskNameW$i -CreateOption Attach -Lun 1 -ManagedDiskId $DataDisk_w.Id
+  $vm = Add-AzureRmVMNetworkInterface -VM $vm -Id $nic.Id
+  $vm = Set-AzureRmVMBootDiagnostics -VM $vm -Disable
+ 
+  New-AzureRmVM -ResourceGroupName $resourceGroup -Location $location -VM $vm -AsJob
+}
 
-# Create a network security group rule for port 3389.
-$rule1 = New-AzureRmNetworkSecurityRuleConfig -Name 'myNetworkSecurityGroupRuleRDP' -Description 'Allow RDP' `
-  -Access Allow -Protocol Tcp -Direction Inbound -Priority 1000 `
-  -SourceAddressPrefix Internet -SourcePortRange * `
-  -DestinationAddressPrefix * -DestinationPortRange 3389
-
-# Create a network security group rule for port 80.
-$rule2 = New-AzureRmNetworkSecurityRuleConfig -Name 'myNetworkSecurityGroupRuleHTTP' -Description 'Allow HTTP' `
-  -Access Allow -Protocol Tcp -Direction Inbound -Priority 2000 `
-  -SourceAddressPrefix Internet -SourcePortRange * `
-  -DestinationAddressPrefix * -DestinationPortRange 80
-
-# Create a network security group
-$nsg = New-AzureRmNetworkSecurityGroup -ResourceGroupName $resourceGroup -Location $location `
--Name 'myNetworkSecurityGroup' -SecurityRules $rule1,$rule2
-
-# Create three virtual network cards and associate with public IP address and NSG.
-$nicVM1 = New-AzureRmNetworkInterface -ResourceGroupName $resourceGroup -Location $location `
-  -Name 'MyNic1' -LoadBalancerBackendAddressPool $bepool -NetworkSecurityGroup $nsg `
-  -LoadBalancerInboundNatRule $natrule1 -Subnet $vnet.Subnets[0]
-
-$nicVM2 = New-AzureRmNetworkInterface -ResourceGroupName $resourceGroup -Location $location `
-  -Name 'MyNic2' -LoadBalancerBackendAddressPool $bepool -NetworkSecurityGroup $nsg `
-  -LoadBalancerInboundNatRule $natrule2 -Subnet $vnet.Subnets[0]
-
-# Create an availability set.
-$as = New-AzureRmAvailabilitySet -ResourceGroupName $resourceGroup -Location $location `
-  -Name 'MyAvailabilitySet' -Sku Aligned -PlatformFaultDomainCount 2 -PlatformUpdateDomainCount 2
-
-# Create three virtual machines.
-
-# ############## VM1 ###############
-
-# Create a virtual machine configuration
-$vmConfig = New-AzureRmVMConfig -VMName 'myVM1' -VMSize Standard_DS2 -AvailabilitySetId $as.Id | `
-  Set-AzureRmVMOperatingSystem -Windows -ComputerName 'myVM1' -Credential $cred | `
-  Set-AzureRmVMSourceImage -PublisherName MicrosoftWindowsServer -Offer WindowsServer `
-  -Skus 2016-Datacenter -Version latest | Add-AzureRmVMNetworkInterface -Id $nicVM1.Id
-
-# Create a virtual machine
-$vm1 = New-AzureRmVM -ResourceGroupName $resourceGroup -Location $location -VM $vmConfig
-
-Invoke-AzureRmVMRunCommand -ResourceGroupName $resourceGroup -Name 'myVM1' -CommandId 'RunPowerShellScript' `
--ScriptPath "$provision_script" -Parameter @{"arg1" = $i} -AsJob
-
-# ############## VM2 ###############
-
-# Create a virtual machine configuration
-$vmConfig = New-AzureRmVMConfig -VMName 'myVM2' -VMSize Standard_DS2 -AvailabilitySetId $as.Id | `
-  Set-AzureRmVMOperatingSystem -Windows -ComputerName 'myVM2' -Credential $cred | `
-  Set-AzureRmVMSourceImage -PublisherName MicrosoftWindowsServer -Offer WindowsServer `
-  -Skus 2016-Datacenter -Version latest | Add-AzureRmVMNetworkInterface -Id $nicVM2.Id
-
-# Create a virtual machine
-$vm2 = New-AzureRmVM -ResourceGroupName $resourceGroup -Location $location -VM $vmConfig
-
-Invoke-AzureRmVMRunCommand -ResourceGroupName $resourceGroup -Name 'myVM2' -CommandId 'RunPowerShellScript' `
--ScriptPath "$provision_script" -Parameter @{"arg1" = $i} -AsJob
+for ($i=1; $i -le 2; $i++)
+{
+    do {
+     $myvm = Get-AzureRMVM -ResourceGroupName $resourceGroup -Name $VMnames$i | Select-Object ProvisioningState
+    } While ( ! $myvm[0].ProvisioningState.Contains("Succeeded") )
+      Set-AzureRmVMExtension -ResourceGroupName lab1 -ExtensionName IIS -VMName LAB1VM1 -Location eastus -Publisher Microsoft.Compute -ExtensionType CustomScriptExtension -TypeHandlerVersion 1.4 -SettingString '{"commandToExecute":"powershell Add-WindowsFeature Web-Server; powershell mkdir "$env:systemdrive\inetpub\hello""}' -AsJob
+}
