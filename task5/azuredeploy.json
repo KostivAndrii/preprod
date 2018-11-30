@@ -21,10 +21,6 @@
         "PublicIPAddress_name": "[parameters('rgName'),'_PIP')]",
         "VNet_name": "[parameters('rgName'),'_VNet')]",
         "Subnet_name": "[parameters('rgName'),'_Subnet')]",
-        "lbID": "[resourceId('Microsoft.Network/loadBalancers',variables('LB_name'))]",
-        "frontEndIPConfigID": "[concat(variables('lbID'),'/frontendIPConfigurations/FrontendIPConfig')]",
-        "lbPoolID": "[concat(variables('lbID'),'/backendAddressPools/BackendPool')]",
-        "lbProbeID": "[concat(variables('lbID'),'/probes/probe01')]",
         "addressPrefix": "10.0.0.0/16", 
         "subnetPrefix": "10.0.1.0/24", 
         "Username": "azureuser",
@@ -237,7 +233,7 @@
                                         "name": "LBRuleWeb",
                                         "properties": {
                                             "frontendIPConfiguration": {
-                                                "id": "[variables('frontEndIPConfigID')]"
+                                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers',variables('LB_name')),'/frontendIPConfigurations/FrontendIPConfig')]"
                                             },
                                             "frontendPort": "[variables('frontend_Port')]",
                                             "backendPort": "[variables('backend_Port')]",
@@ -247,10 +243,10 @@
                                             "enableTcpReset": false,
                                             "loadDistribution": "Default",
                                             "backendAddressPool": {
-                                                "id": "[variables('lbPoolID')]"
+                                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers',variables('LB_name')),'/backendAddressPools/BackendPool')]"
                                             },
                                             "probe": {
-                                                "id": "[variables('lbProbeID')]"
+                                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers',variables('LB_name')),'/probes/probe01')]"
                                             }
                                         }
                                     }
