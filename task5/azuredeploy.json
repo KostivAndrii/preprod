@@ -9,7 +9,29 @@
             "type": "string"
         }
     },
-    "variables": {},
+    "variables": {
+        "LB_name": "[concat(resourceGroup().name,'_LB')]",
+        "VM1_name": "[concat(resourceGroup().name,'_VM1')]",
+        "VM2_name": "[concat(resourceGroup().name,'_VM2')]",
+        "NIC1_name": "[concat(resourceGroup().name,'_NIC1')]",
+        "NIC2_name": "[concat(resourceGroup().name,'_NIC2')]",
+        "AvailabilitySet_name": "[concat(resourceGroup().name,'_AS')]",
+        "NSGRuleHTTP_name": "NSGRuleHTTP",
+        "NSG_name": "[concat(resourceGroup().name,'_NSG')]",
+        "PublicIPAddress_name": "[concat(resourceGroup().name,'_PIP')]",
+        "VNet_name": "[concat(resourceGroup().name,'_VNet')]",
+        "Subnet_name": "[concat(resourceGroup().name,'_Subnet')]",
+        "lbID": "[resourceId('Microsoft.Network/loadBalancers',variables('LB_name'))]",
+        "frontEndIPConfigID": "[concat(variables('lbID'),'/frontendIPConfigurations/FrontendIPConfig')]",
+        "lbPoolID": "[concat(variables('lbID'),'/backendAddressPools/BackendPool')]",
+        "lbProbeID": "[concat(variables('lbID'),'/probes/probe01')]",
+        "addressPrefix": "10.0.0.0/16", 
+        "subnetPrefix": "10.0.1.0/24", 
+        "Username": "azureuser",
+        "Password": "Pa$$w0rd",
+        "frontend_Port": 80,
+        "backend_Port": 8080
+    },
     "resources": [
         {
             "type": "Microsoft.Resources/resourceGroups",
@@ -32,30 +54,7 @@
                     "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
                     "contentVersion": "1.0.0.0",
                     "parameters": {},
-                    "variables": {
-                        "LB_name": "[concat(resourceGroup().name,'_LB')]",
-                        "VM1_name": "[concat(resourceGroup().name,'_VM1')]",
-                        "VM2_name": "[concat(resourceGroup().name,'_VM2')]",
-                        "NIC1_name": "[concat(resourceGroup().name,'_NIC1')]",
-                        "NIC2_name": "[concat(resourceGroup().name,'_NIC2')]",
-                        "AvailabilitySet_name": "[concat(resourceGroup().name,'_AS')]",
-                        "NSGRuleHTTP_name": "NSGRuleHTTP",
-                        "NSG_name": "[concat(resourceGroup().name,'_NSG')]",
-                        "PublicIPAddress_name": "[concat(resourceGroup().name,'_PIP')]",
-                        "VNet_name": "[concat(resourceGroup().name,'_VNet')]",
-                        "Subnet_name": "[concat(resourceGroup().name,'_Subnet')]",
-                        "lbID": "[resourceId('Microsoft.Network/loadBalancers',variables('LB_name'))]",
-                        "frontEndIPConfigID": "[concat(variables('lbID'),'/frontendIPConfigurations/FrontendIPConfig')]",
-                        "lbPoolID": "[concat(variables('lbID'),'/backendAddressPools/BackendPool')]",
-                        "lbProbeID": "[concat(variables('lbID'),'/probes/probe01')]",
-                        "addressPrefix": "10.0.0.0/16", 
-                        "subnetPrefix": "10.0.1.0/24", 
-                        "Username": "azureuser",
-                        "Password": "Pa$$w0rd",
-                        "frontend_Port": 80,
-                        "backend_Port": 8080
-            
-                    },
+                    "variables": {},
                     "resources": [
                         {
                             "type": "Microsoft.Compute/availabilitySets",
