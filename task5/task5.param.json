@@ -1,0 +1,51 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "addressPrefix": {
+            "value": "10.0.0.0/16"
+        },
+        "subnetPrefix": {
+            "value": "10.0.1.0/24"
+        },
+        "vmSize": {
+            "value": "Standard_D2s_v3"
+        },
+        "publisher": {
+            "value": "MicrosoftWindowsServer"
+        },
+        "offer": {
+            "value": "WindowsServer"
+        },
+        "sku": {
+            "value": "2016-Datacenter"
+        },
+        "version": {
+            "value": "latest"
+        },
+        "stAccountType": {
+            "value": "Premium_LRS"
+        },
+        "probe_protocol": {
+            "value": "Http"
+        },
+        "intervalSec": {
+            "value": 5
+        },
+        "numberOfProbes": {
+            "value": 2
+        },
+        "Username": {
+            "value": "azureuser"
+        },
+        "Password": {
+            "value": "Pa$$w0rd"
+        },
+        "frontend_Port": {
+            "value": 80
+        },
+        "backend_Port": {
+            "value": 8080
+        }
+    }
+}

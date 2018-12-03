@@ -2,7 +2,51 @@
     "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
-        
+        "addressPrefix": {
+            "type": "string"
+        },
+        "subnetPrefix": {
+            "type": "string"
+        },
+        "vmSize": {
+            "type": "string"
+        },
+        "publisher": {
+            "type": "string"
+        },
+        "offer": {
+            "type": "string"
+        },
+        "sku": {
+            "type": "string"
+        },
+        "version": {
+            "type": "string"
+        },
+        "stAccountType": {
+            "type": "string"
+        },
+        "probe_protocol": {
+            "type": "string"
+        },
+        "intervalSec": {
+            "type": "int"
+        },
+        "numberOfProbes": {
+            "type": "int"
+        },
+        "Username": {
+            "type": "string"
+        },
+        "Password": {
+            "type": "string"
+        },
+        "frontend_Port": {
+            "type": "int"
+        },
+        "backend_Port": {
+            "type": "int"
+        }
     },    
     "variables": { 
         "LB_name": "[concat(resourceGroup().name,'_LB')]",
@@ -19,22 +63,7 @@
         "lbID": "[resourceId('Microsoft.Network/loadBalancers',variables('LB_name'))]",
         "frontEndIPConfigID": "[concat(variables('lbID'),'/frontendIPConfigurations/FrontendIPConfig')]",
         "lbPoolID": "[concat(variables('lbID'),'/backendAddressPools/BackendPool')]",
-        "lbProbeID": "[concat(variables('lbID'),'/probes/probe01')]",
-        "addressPrefix": "10.0.0.0/16", 
-        "subnetPrefix": "10.0.1.0/24", 
-        "vmSize": "Standard_DS1_v2",
-        "publisher": "MicrosoftWindowsServer",
-        "offer": "WindowsServer",
-        "sku": "2016-Datacenter",
-        "version": "latest",
-        "storageAccountType": "Standard_LRS",
-        "probe_protocol": "Http",
-        "probe_intervalInSeconds": 5,
-        "probe_numberOfProbes": 2,
-        "Username": "azureuser",
-        "Password": "Pa$$w0rd",
-        "frontend_Port": 80,
-        "backend_Port": 8080
+        "lbProbeID": "[concat(variables('lbID'),'/probes/probe01')]"
     },
     "resources": [
         {
@@ -48,143 +77,94 @@
             "properties": {
                 "platformUpdateDomainCount": 2,
                 "platformFaultDomainCount": 2
-            },
-            "dependsOn": []
+            }
         },
-
         {
-            "type": "Microsoft.Compute/virtualMachines",
-            "comments": "",
-            "name": "[variables('VM1_name')]",
-            "apiVersion": "2018-06-01",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "sku": {
+                "name": "Basic",
+                "tier": "Regional"
+            },
+            "name": "[variables('PublicIPAddress_name')]",
+            "apiVersion": "2018-08-01",
             "location": "[resourceGroup().location]",
             "properties": {
-                "availabilitySet": {
-                    "id": "[resourceId('Microsoft.Compute/availabilitySets', variables('AvailabilitySet_name'))]"
-                },
-                "hardwareProfile": {
-                    "vmSize": "[variables('vmSize')]"
-                },
-                "storageProfile": {
-                    "imageReference": {
-                        "publisher": "[variables('publisher')]",
-                        "offer": "[variables('offer')]",
-                        "sku": "[variables('sku')]",
-                        "version": "[variables('version')]"
-                    },
-                    "osDisk": {
-                        "osType": "Windows",
-                        "createOption": "FromImage",
-                        "caching": "ReadWrite",
-                        "diskSizeGB": 127
-                    },
-                    "dataDisks": [
-                        {
-                            "lun": 1,
-                            "name": "[concat(variables('VM1_name'), 'MAN_DATADISK')]",
-                            "caching": "None",
-                            "createOption": "Empty",
-                            "managedDisk": {
-                                "storageAccountType": "[variables('storageAccountType')]"
-                            },
-                            "diskSizeGB": 10
+                "publicIPAllocationMethod": "Dynamic"
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "[variables('NSG_name')]",
+            "apiVersion": "2018-08-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "NSGRuleHTTP",
+                        "properties": {
+                            "description": "Allow HTTP",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "[parameters('backend_Port')]",
+                            "sourceAddressPrefix": "Internet",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1000,
+                            "direction": "Inbound"
                         }
-                    ]
-                },
-                "osProfile": {
-                    "computerName": "[concat(resourceGroup().name,'VM1')]",
-                    "adminUsername": "[variables('Username')]",
-                    "adminPassword": "[variables('Password')]",
-                    "windowsConfiguration": {
-                        "provisionVMAgent": true,
-                        "enableAutomaticUpdates": false
-                    },
-                    "secrets": [],
-                    "allowExtensionOperations": true
-                },
-                "networkProfile": {
-                    "networkInterfaces": [
-                        {
-                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('NIC1_name'))]"
-                        }
-                    ]
-                },
-                "diagnosticsProfile": {
-                    "bootDiagnostics": {
-                        "enabled": false
                     }
-                }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[variables('VNet_name')]",
+            "apiVersion": "2018-08-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[parameters('addressPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('Subnet_name')]",
+                        "properties": {
+                            "addressPrefix": "[parameters('subnetPrefix')]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "name": "[concat(variables('VNet_name'), '/', variables('Subnet_name'))]",
+            "apiVersion": "2018-08-01",
+            "properties": {
+                "addressPrefix": "[parameters('subnetPrefix')]"
             },
             "dependsOn": [
-                "[resourceId('Microsoft.Compute/availabilitySets', variables('AvailabilitySet_name'))]",
-                "[resourceId('Microsoft.Network/networkInterfaces', variables('NIC1_name'))]"
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('VNet_name'))]"
             ]
         },
         {
-            "type": "Microsoft.Compute/virtualMachines",
-            "name": "[variables('VM2_name')]",
-            "apiVersion": "2018-06-01",
-            "location": "[resourceGroup().location]",
+            "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+            "name": "[concat(variables('NSG_name'), '/', variables('NSGRuleHTTP_name'))]",
+            "apiVersion": "2018-08-01",
             "properties": {
-                "availabilitySet": {
-                    "id": "[resourceId('Microsoft.Compute/availabilitySets', variables('AvailabilitySet_name'))]"
-                },
-                "hardwareProfile": {
-                    "vmSize": "[variables('vmSize')]"
-                },
-                "storageProfile": {
-                    "imageReference": {
-                        "publisher": "[variables('publisher')]",
-                        "offer": "[variables('offer')]",
-                        "sku": "[variables('sku')]",
-                        "version": "[variables('version')]"
-                    },
-                    "osDisk": {
-                        "osType": "Windows",
-                        "createOption": "FromImage",
-                        "caching": "ReadWrite",
-                        "diskSizeGB": 127
-                    },
-                    "dataDisks": [
-                        {
-                            "lun": 1,
-                            "name": "[concat(variables('VM2_name'), 'MAN_DATADISK')]",
-                            "caching": "None",
-                            "createOption": "Empty",
-                            "managedDisk": {
-                                "storageAccountType": "[variables('storageAccountType')]"
-                            },
-                            "diskSizeGB": 10
-                        }
-                    ]
-                },
-                "osProfile": {
-                    "computerName": "[concat(resourceGroup().name,'VM2')]",
-                    "adminUsername": "[variables('Username')]",
-                    "adminPassword": "[variables('Password')]",
-                    "windowsConfiguration": {
-                        "provisionVMAgent": true,
-                        "enableAutomaticUpdates": false
-                    },
-                    "secrets": [],
-                    "allowExtensionOperations": true
-                },
-                "networkProfile": {
-                    "networkInterfaces": [
-                        {
-                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('NIC2_name'))]"
-                        }
-                    ]
-                },
-                "diagnosticsProfile": {
-                    "bootDiagnostics": {
-                        "enabled": false
-                    }
-                }
+                "description": "Allow HTTP",
+                "protocol": "Tcp",
+                "sourcePortRange": "*",
+                "destinationPortRange": "[parameters('backend_Port')]",
+                "sourceAddressPrefix": "Internet",
+                "destinationAddressPrefix": "*",
+                "access": "Allow",
+                "priority": 1000,
+                "direction": "Inbound"
             },
             "dependsOn": [
-                "[resourceId('Microsoft.Compute/availabilitySets', variables('AvailabilitySet_name'))]",
-                "[resourceId('Microsoft.Network/networkInterfaces', variables('NIC2_name'))]"
+                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('NSG_name'))]"
             ]
         },
         {
@@ -220,8 +200,8 @@
                             "frontendIPConfiguration": {
                                 "id": "[variables('frontEndIPConfigID')]"
                             },
-                            "frontendPort": "[variables('frontend_Port')]",
-                            "backendPort": "[variables('backend_Port')]",
+                            "frontendPort": "[parameters('frontend_Port')]",
+                            "backendPort": "[parameters('backend_Port')]",
                             "enableFloatingIP": false,
                             "idleTimeoutInMinutes": 4,
                             "protocol": "Tcp",
@@ -240,11 +220,11 @@
                     {
                         "name": "probe01",
                         "properties": {
-                            "protocol": "[variables('probe_protocol')]",
-                            "port": "[variables('backend_Port')]",
+                            "protocol": "[parameters('probe_protocol')]",
+                            "port": "[parameters('backend_Port')]",
                             "requestPath": "/",
-                            "intervalInSeconds": "[variables('probe_intervalInSeconds')]",
-                            "numberOfProbes": "[variables('probe_numberOfProbes')]"
+                            "intervalInSeconds": "[parameters('intervalSec')]",
+                            "numberOfProbes": "[parameters('numberOfProbes')]"
                         }
                     }
                 ]
@@ -330,81 +310,144 @@
             ]
         },
         {
-            "type": "Microsoft.Network/networkSecurityGroups",
-            "name": "[variables('NSG_name')]",
-            "apiVersion": "2018-08-01",
+            "type": "Microsoft.Compute/virtualMachines",
+            "comments": "",
+            "name": "[variables('VM1_name')]",
+            "apiVersion": "2018-06-01",
             "location": "[resourceGroup().location]",
             "properties": {
-                "securityRules": [
-                    {
-                        "name": "[variables('NSGRuleHTTP_name')]",
-                        "properties": {
-                            "description": "Allow HTTP",
-                            "protocol": "Tcp",
-                            "sourcePortRange": "*",
-                            "destinationPortRange": "[variables('backend_Port')]",
-                            "sourceAddressPrefix": "Internet",
-                            "destinationAddressPrefix": "*",
-                            "access": "Allow",
-                            "priority": 1000,
-                            "direction": "Inbound"
+                "availabilitySet": {
+                    "id": "[resourceId('Microsoft.Compute/availabilitySets', variables('AvailabilitySet_name'))]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "[parameters('vmSize')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[parameters('publisher')]",
+                        "offer": "[parameters('offer')]",
+                        "sku": "[parameters('sku')]",
+                        "version": "[parameters('version')]"
+                    },
+                    "osDisk": {
+                        "osType": "Windows",
+                        "createOption": "FromImage",
+                        "caching": "ReadWrite",
+                        "diskSizeGB": 127
+                    },
+                    "dataDisks": [
+                        {
+                            "lun": 1,
+                            "name": "[concat(variables('VM1_name'), 'MAN_DATADISK')]",
+                            "caching": "None",
+                            "createOption": "Empty",
+                            "managedDisk": {
+                                "storageAccountType": "[parameters('stAccountType')]"
+                            },
+                            "diskSizeGB": 10
                         }
-                    }
-                ]
-            },
-            "dependsOn": []
-        },
-        {
-            "type": "Microsoft.Network/publicIPAddresses",
-            "sku": {
-                "name": "Basic",
-                "tier": "Regional"
-            },
-            "name": "[variables('PublicIPAddress_name')]",
-            "apiVersion": "2018-08-01",
-            "location": "[resourceGroup().location]",
-            "properties": {
-                "publicIPAllocationMethod": "Dynamic"
-            },
-            "dependsOn": []
-        },
-        {
-            "type": "Microsoft.Network/virtualNetworks",
-            "name": "[variables('VNet_name')]",
-            "apiVersion": "2018-08-01",
-            "location": "[resourceGroup().location]",
-            "properties": {
-                "addressSpace": {
-                    "addressPrefixes": [
-                        "[variables('addressPrefix')]"
                     ]
                 },
-                "subnets": [
-                    {
-                        "name": "[variables('Subnet_name')]",
-                        "properties": {
-                            "addressPrefix": "[variables('subnetPrefix')]"
+                "osProfile": {
+                    "computerName": "[concat(resourceGroup().name,'VM1')]",
+                    "adminUsername": "[parameters('Username')]",
+                    "adminPassword": "[parameters('Password')]",
+                    "windowsConfiguration": {
+                        "provisionVMAgent": true,
+                        "enableAutomaticUpdates": false
+                    },
+                    "secrets": [],
+                    "allowExtensionOperations": true
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('NIC1_name'))]"
                         }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": false
                     }
-                ]
-            },
-            "dependsOn": []
-        },
-        {
-            "type": "Microsoft.Network/virtualNetworks/subnets",
-            "name": "[concat(variables('VNet_name'), '/', variables('Subnet_name'))]",
-            "apiVersion": "2018-08-01",
-            "properties": {
-                "addressPrefix": "[variables('subnetPrefix')]"
+                }
             },
             "dependsOn": [
-                "[resourceId('Microsoft.Network/virtualNetworks', variables('VNet_name'))]"
+                "[resourceId('Microsoft.Compute/availabilitySets', variables('AvailabilitySet_name'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', variables('NIC1_name'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[variables('VM2_name')]",
+            "apiVersion": "2018-06-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "availabilitySet": {
+                    "id": "[resourceId('Microsoft.Compute/availabilitySets', variables('AvailabilitySet_name'))]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "[parameters('vmSize')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[parameters('publisher')]",
+                        "offer": "[parameters('offer')]",
+                        "sku": "[parameters('sku')]",
+                        "version": "[parameters('version')]"
+                    },
+                    "osDisk": {
+                        "osType": "Windows",
+                        "createOption": "FromImage",
+                        "caching": "ReadWrite",
+                        "diskSizeGB": 127
+                    },
+                    "dataDisks": [
+                        {
+                            "lun": 1,
+                            "name": "[concat(variables('VM2_name'), 'MAN_DATADISK')]",
+                            "caching": "None",
+                            "createOption": "Empty",
+                            "managedDisk": {
+                                "storageAccountType": "[parameters('stAccountType')]"
+                            },
+                            "diskSizeGB": 10
+                        }
+                    ]
+                },
+                "osProfile": {
+                    "computerName": "[concat(resourceGroup().name,'VM2')]",
+                    "adminUsername": "[parameters('Username')]",
+                    "adminPassword": "[parameters('Password')]",
+                    "windowsConfiguration": {
+                        "provisionVMAgent": true,
+                        "enableAutomaticUpdates": false
+                    },
+                    "secrets": [],
+                    "allowExtensionOperations": true
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('NIC2_name'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": false
+                    }
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/availabilitySets', variables('AvailabilitySet_name'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', variables('NIC2_name'))]"
             ]
         },
         {
             "apiVersion": "2015-06-15",
             "type": "Microsoft.Compute/virtualMachines/extensions",
-            "name": "[concat(variables('VM1_name'),'/config-IIS')]",
+            "name": "[concat(variables('VM1_name'),'/config-IIS1')]",
             "location": "[resourceGroup().location]",
             "dependsOn": [
                 "[concat('Microsoft.Compute/virtualMachines/', variables('VM1_name'))]"
