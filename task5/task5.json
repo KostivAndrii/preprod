@@ -20,6 +20,15 @@
         "lbProbeID": "[concat(variables('lbID'),'/probes/probe01')]",
         "addressPrefix": "10.0.0.0/16", 
         "subnetPrefix": "10.0.1.0/24", 
+        "vmSize": "Standard_DS1_v2",
+        "publisher": "MicrosoftWindowsServer",
+        "offer": "WindowsServer",
+        "sku": "2016-Datacenter",
+        "version": "latest",
+        "storageAccountType": "Standard_LRS",
+        "probe_protocol": "Http",
+        "probe_intervalInSeconds": 5,
+        "probe_numberOfProbes": 2,
         "Username": "azureuser",
         "Password": "Pa$$w0rd",
         "frontend_Port": 80,
@@ -52,14 +61,14 @@
                     "id": "[resourceId('Microsoft.Compute/availabilitySets', variables('AvailabilitySet_name'))]"
                 },
                 "hardwareProfile": {
-                    "vmSize": "Standard_DS1_v2"
+                    "vmSize": "[variables('vmSize')]"
                 },
                 "storageProfile": {
                     "imageReference": {
-                        "publisher": "MicrosoftWindowsServer",
-                        "offer": "WindowsServer",
-                        "sku": "2016-Datacenter",
-                        "version": "latest"
+                        "publisher": "[variables('publisher')]",
+                        "offer": "[variables('offer')]",
+                        "sku": "[variables('sku')]",
+                        "version": "[variables('version')]"
                     },
                     "osDisk": {
                         "osType": "Windows",
@@ -74,7 +83,7 @@
                             "caching": "None",
                             "createOption": "Empty",
                             "managedDisk": {
-                                "storageAccountType": "Standard_LRS"
+                                "storageAccountType": "[variables('storageAccountType')]"
                             },
                             "diskSizeGB": 10
                         }
@@ -119,14 +128,14 @@
                     "id": "[resourceId('Microsoft.Compute/availabilitySets', variables('AvailabilitySet_name'))]"
                 },
                 "hardwareProfile": {
-                    "vmSize": "Standard_DS1_v2"
+                    "vmSize": "[variables('vmSize')]"
                 },
                 "storageProfile": {
                     "imageReference": {
-                        "publisher": "MicrosoftWindowsServer",
-                        "offer": "WindowsServer",
-                        "sku": "2016-Datacenter",
-                        "version": "latest"
+                        "publisher": "[variables('publisher')]",
+                        "offer": "[variables('offer')]",
+                        "sku": "[variables('sku')]",
+                        "version": "[variables('version')]"
                     },
                     "osDisk": {
                         "osType": "Windows",
@@ -141,7 +150,7 @@
                             "caching": "None",
                             "createOption": "Empty",
                             "managedDisk": {
-                                "storageAccountType": "Standard_LRS"
+                                "storageAccountType": "[variables('storageAccountType')]"
                             },
                             "diskSizeGB": 10
                         }
@@ -229,11 +238,11 @@
                     {
                         "name": "probe01",
                         "properties": {
-                            "protocol": "Http",
+                            "protocol": "[variables('probe_protocol')]",
                             "port": "[variables('backend_Port')]",
                             "requestPath": "/",
-                            "intervalInSeconds": 5,
-                            "numberOfProbes": 2
+                            "intervalInSeconds": "[variables('probe_intervalInSeconds')]",
+                            "numberOfProbes": "[variables('probe_numberOfProbes')]"
                         }
                     }
                 ]
@@ -326,7 +335,7 @@
             "properties": {
                 "securityRules": [
                     {
-                        "name": "NSGRuleHTTP",
+                        "name": "[variables('NSGRuleHTTP_name')]",
                         "properties": {
                             "description": "Allow HTTP",
                             "protocol": "Tcp",
@@ -378,25 +387,6 @@
                 ]
             },
             "dependsOn": []
-        },
-        {
-            "type": "Microsoft.Network/networkSecurityGroups/securityRules",
-            "name": "[concat(variables('NSG_name'), '/', variables('NSGRuleHTTP_name'))]",
-            "apiVersion": "2018-08-01",
-            "properties": {
-                "description": "Allow HTTP",
-                "protocol": "Tcp",
-                "sourcePortRange": "*",
-                "destinationPortRange": "[variables('backend_Port')]",
-                "sourceAddressPrefix": "Internet",
-                "destinationAddressPrefix": "*",
-                "access": "Allow",
-                "priority": 1000,
-                "direction": "Inbound"
-            },
-            "dependsOn": [
-                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('NSG_name'))]"
-            ]
         },
         {
             "type": "Microsoft.Network/virtualNetworks/subnets",
