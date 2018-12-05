@@ -1,0 +1,480 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": { 
+        "addressPrefix": {
+            "type": "string"
+        },
+        "subnetPrefix": {
+            "type": "string"
+        },
+        "vmSize": {
+            "type": "string"
+        },
+        "publisher": {
+            "type": "string"
+        },
+        "offer": {
+            "type": "string"
+        },
+        "sku": {
+            "type": "string"
+        },
+        "version": {
+            "type": "string"
+        },
+        "stAccountType": {
+            "type": "string"
+        },
+        "probe_protocol": {
+            "type": "string"
+        },
+        "intervalSec": {
+            "type": "int"
+        },
+        "numberOfProbes": {
+            "type": "int"
+        },
+        "Username": {
+            "type": "string"
+        },
+        "Password": {
+            "type": "string"
+        },
+        "frontend_Port": {
+            "type": "int"
+        },
+        "backend_Port": {
+            "type": "int"
+        }
+
+    },    
+    "variables": { 
+        "LB_name": "[concat(resourceGroup().name,'_LB')]",
+        "VM1_name": "[concat(resourceGroup().name,'_VM1')]",
+        "VM2_name": "[concat(resourceGroup().name,'_VM2')]",
+        "NIC1_name": "[concat(resourceGroup().name,'_NIC1')]",
+        "NIC2_name": "[concat(resourceGroup().name,'_NIC2')]",
+        "AvailabilitySet_name": "[concat(resourceGroup().name,'_AS')]",
+        "NSGRuleHTTP_name": "NSGRuleHTTP",
+        "NSG_name": "[concat(resourceGroup().name,'_NSG')]",
+        "PublicIPAddress_name": "[concat(resourceGroup().name,'_PIP')]",
+        "VNet_name": "[concat(resourceGroup().name,'_VNet')]",
+        "Subnet_name": "[concat(resourceGroup().name,'_Subnet')]",
+        "lbID": "[resourceId('Microsoft.Network/loadBalancers',variables('LB_name'))]",
+        "frontEndIPConfigID": "[concat(variables('lbID'),'/frontendIPConfigurations/FrontendIPConfig')]",
+        "lbPoolID": "[concat(variables('lbID'),'/backendAddressPools/BackendPool')]",
+        "lbProbeID": "[concat(variables('lbID'),'/probes/probe01')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Compute/availabilitySets",
+            "sku": {
+                "name": "Aligned"
+            },
+            "name": "[variables('AvailabilitySet_name')]",
+            "apiVersion": "2018-06-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "platformUpdateDomainCount": 2,
+                "platformFaultDomainCount": 2
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "comments": "",
+            "name": "[variables('VM1_name')]",
+            "apiVersion": "2018-06-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "availabilitySet": {
+                    "id": "[resourceId('Microsoft.Compute/availabilitySets', variables('AvailabilitySet_name'))]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "[parameters('vmSize')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[parameters('publisher')]",
+                        "offer": "[parameters('offer')]",
+                        "sku": "[parameters('sku')]",
+                        "version": "[parameters('version')]"
+                    },
+                    "osDisk": {
+                        "osType": "Windows",
+                        "createOption": "FromImage",
+                        "caching": "ReadWrite",
+                        "diskSizeGB": 127
+                    },
+                    "dataDisks": [
+                        {
+                            "lun": 1,
+                            "name": "[concat(variables('VM1_name'), 'MAN_DATADISK')]",
+                            "caching": "None",
+                            "createOption": "Empty",
+                            "managedDisk": {
+                                "storageAccountType": "[parameters('stAccountType')]"
+                            },
+                            "diskSizeGB": 10
+                        }
+                    ]
+                },
+                "osProfile": {
+                    "computerName": "[concat(resourceGroup().name,'VM1')]",
+                    "adminUsername": "[parameters('Username')]",
+                    "adminPassword": "[parameters('Password')]",
+                    "windowsConfiguration": {
+                        "provisionVMAgent": true,
+                        "enableAutomaticUpdates": false
+                    },
+                    "allowExtensionOperations": true
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('NIC1_name'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": false
+                    }
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/availabilitySets', variables('AvailabilitySet_name'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', variables('NIC1_name'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[variables('VM2_name')]",
+            "apiVersion": "2018-06-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "availabilitySet": {
+                    "id": "[resourceId('Microsoft.Compute/availabilitySets', variables('AvailabilitySet_name'))]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "[parameters('vmSize')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[parameters('publisher')]",
+                        "offer": "[parameters('offer')]",
+                        "sku": "[parameters('sku')]",
+                        "version": "[parameters('version')]"
+                    },
+                    "osDisk": {
+                        "osType": "Windows",
+                        "createOption": "FromImage",
+                        "caching": "ReadWrite",
+                        "diskSizeGB": 127
+                    },
+                    "dataDisks": [
+                        {
+                            "lun": 1,
+                            "name": "[concat(variables('VM2_name'), 'MAN_DATADISK')]",
+                            "caching": "None",
+                            "createOption": "Empty",
+                            "managedDisk": {
+                                "storageAccountType": "[parameters('stAccountType')]"
+                            },
+                            "diskSizeGB": 10
+                        }
+                    ]
+                },
+                "osProfile": {
+                    "computerName": "[concat(resourceGroup().name,'VM2')]",
+                    "adminUsername": "[parameters('Username')]",
+                    "adminPassword": "[parameters('Password')]",
+                    "windowsConfiguration": {
+                        "provisionVMAgent": true,
+                        "enableAutomaticUpdates": false
+                    },
+                    "allowExtensionOperations": true
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('NIC2_name'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": false
+                    }
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/availabilitySets', variables('AvailabilitySet_name'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', variables('NIC2_name'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Network/loadBalancers",
+            "sku": {
+                "name": "Basic",
+                "tier": "Regional"
+            },
+            "name": "[variables('LB_name')]",
+            "apiVersion": "2018-08-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "frontendIPConfigurations": [
+                    {
+                        "name": "FrontendIPConfig",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('PublicIPAddress_name'))]"
+                            }
+                        }
+                    }
+                ],
+                "backendAddressPools": [
+                    {
+                        "name": "BackendPool"
+                    }
+                ],
+                "loadBalancingRules": [
+                    {
+                        "name": "LBRuleWeb",
+                        "properties": {
+                            "frontendIPConfiguration": {
+                                "id": "[variables('frontEndIPConfigID')]"
+                            },
+                            "frontendPort": "[parameters('frontend_Port')]",
+                            "backendPort": "[parameters('backend_Port')]",
+                            "idleTimeoutInMinutes": 4,
+                            "protocol": "Tcp",
+                            "backendAddressPool": {
+                                "id": "[variables('lbPoolID')]"
+                            },
+                            "probe": {
+                                "id": "[variables('lbProbeID')]"
+                            }
+                        }
+                    }
+                ],
+                "probes": [
+                    {
+                        "name": "probe01",
+                        "properties": {
+                            "protocol": "[parameters('probe_protocol')]",
+                            "port": "[parameters('backend_Port')]",
+                            "requestPath": "/",
+                            "intervalInSeconds": "[parameters('intervalSec')]",
+                            "numberOfProbes": "[parameters('numberOfProbes')]"
+                        }
+                    }
+                ]
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses', variables('PublicIPAddress_name'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[variables('NIC1_name')]",
+            "apiVersion": "2018-08-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('VNet_name'), variables('Subnet_name'))]"
+                            },
+                            "privateIPAddressVersion": "IPv4",
+                            "loadBalancerBackendAddressPools": [
+                                {
+                                    "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('LB_name')), '/backendAddressPools/BackendPool')]"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('NSG_name'))]"
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('VNet_name'), variables('Subnet_name'))]",
+                "[resourceId('Microsoft.Network/loadBalancers', variables('LB_name'))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('NSG_name'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[variables('NIC2_name')]",
+            "apiVersion": "2018-08-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('VNet_name'), variables('Subnet_name'))]"
+                            },
+                            "privateIPAddressVersion": "IPv4",
+                            "loadBalancerBackendAddressPools": [
+                                {
+                                    "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('LB_name')), '/backendAddressPools/BackendPool')]"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('NSG_name'))]"
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('VNet_name'), variables('Subnet_name'))]",
+                "[resourceId('Microsoft.Network/loadBalancers', variables('LB_name'))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('NSG_name'))]"
+            ]
+        },
+         {
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "[variables('NSG_name')]",
+            "apiVersion": "2018-08-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "[variables('NSGRuleHTTP_name')]",
+                        "properties": {
+                            "description": "Allow HTTP",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "[parameters('backend_Port')]",
+                            "sourceAddressPrefix": "Internet",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 1000,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/publicIPAddresses",
+            "sku": {
+                "name": "Basic",
+                "tier": "Regional"
+            },
+            "name": "[variables('PublicIPAddress_name')]",
+            "apiVersion": "2018-08-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "publicIPAllocationMethod": "Dynamic"
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[variables('VNet_name')]",
+            "apiVersion": "2018-08-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[parameters('addressPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('Subnet_name')]",
+                        "properties": {
+                            "addressPrefix": "[parameters('subnetPrefix')]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+            "name": "[concat(variables('NSG_name'), '/', variables('NSGRuleHTTP_name'))]",
+            "apiVersion": "2018-08-01",
+            "properties": {
+                "description": "Allow HTTP",
+                "protocol": "Tcp",
+                "sourcePortRange": "*",
+                "destinationPortRange": "[variables('backend_Port')]",
+                "sourceAddressPrefix": "Internet",
+                "destinationAddressPrefix": "*",
+                "access": "Allow",
+                "priority": 1000,
+                "direction": "Inbound"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('NSG_name'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks/subnets",
+            "name": "[concat(variables('VNet_name'), '/', variables('Subnet_name'))]",
+            "apiVersion": "2018-08-01",
+            "properties": {
+                "addressPrefix": "[parameters('subnetPrefix')]"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('VNet_name'))]"
+            ]
+        },
+       {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('VM1_name'),'/config-IIS')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('VM1_name'))]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.Compute",
+                "type": "CustomScriptExtension",
+                "typeHandlerVersion": "1.9",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/KostivAndrii/preprod/master/task5/customiis.ps1"
+                    ]
+                },
+                "protectedSettings": {
+                    "commandToExecute": "powershell.exe -ExecutionPolicy Unrestricted -File customiis.ps1 -arg1 1"
+                }
+            }
+        },
+        {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('VM2_name'),'/config-IIS2')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('VM2_name'))]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.Compute",
+                "type": "CustomScriptExtension",
+                "typeHandlerVersion": "1.9",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "fileUris": [
+                        "https://raw.githubusercontent.com/KostivAndrii/preprod/master/task5/customiis.ps1"
+                    ]
+                },
+                "protectedSettings": {
+                    "commandToExecute": "powershell.exe -ExecutionPolicy Unrestricted -File customiis.ps1 -arg1 2"
+                }
+            }
+        }
+    ]
+}
