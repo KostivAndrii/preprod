@@ -1,0 +1,217 @@
+- name: Create Azure VM
+  hosts: localhost
+  connection: local
+
+  vars:
+    RG        : aRG001
+    location  : francecentral
+    offer     : WindowsServer
+    publisher : MicrosoftWindowsServer
+    sku       : '2016-Datacenter'
+    version   : latest
+    vm_size   : Standard_DS1_v2
+
+
+  tasks:
+  - name: Create resource group
+    azure_rm_resourcegroup:
+      name: "{{ RG }}"
+      location: "{{ location }}"
+
+  - name: Create an availability set with advanced options
+    azure_rm_availabilityset:
+      name: myavailabilityset
+      location: "{{ location }}"
+      resource_group: "{{ RG }}"
+      platform_update_domain_count: 2
+      platform_fault_domain_count: 2
+      sku: Aligned
+
+  - name: Create virtual network
+    azure_rm_virtualnetwork:
+      resource_group: "{{ RG }}"
+      name: myVnet
+      address_prefixes: "10.0.0.0/16"
+
+  - name: Add subnet
+    azure_rm_subnet:
+      resource_group: "{{ RG }}"
+      name: mySubnet
+      address_prefix: "10.0.1.0/24"
+      virtual_network: myVnet
+
+  - name: Create public IP address
+    azure_rm_publicipaddress:
+      resource_group: "{{ RG }}"
+      allocation_method: Static
+      name: myPublicIP
+    register: output_ip_address
+
+  - name: Dump public IP for VM which will be created
+    debug:
+      msg: "The public IP is {{ output_ip_address.state.ip_address }}."
+
+  - name: Create Network Security Group that allows HTTP
+    azure_rm_securitygroup:
+      resource_group: "{{ RG }}"
+      name: myNetworkSecurityGroup
+      rules:
+        - name: Allow_HTTP
+          protocol: Tcp
+          destination_port_range: 8080
+          access: Allow
+          priority: 1001
+          direction: Inbound
+
+  - name: create load balancer
+    azure_rm_loadbalancer:
+      resource_group: "{{ RG }}"
+      name: myloadbalancer
+      frontend_ip_configurations:
+        - name: frontendipconf0
+          public_ip_address: myPublicIP
+          private_ip_allocation_method: Dynamic
+      backend_address_pools:
+        - name: backendaddrpool0
+      probes:
+        - name: prob0
+          port: 8080
+      load_balancing_rules:
+        - name: lbrbalancingrule0
+          frontend_ip_configuration: frontendipconf0
+          backend_address_pool: backendaddrpool0
+          frontend_port: 80
+          backend_port: 8080
+          probe: prob0
+
+  - name: Create virtual network inteface card
+    azure_rm_networkinterface:
+      resource_group: "{{ RG }}"
+      name: myNIC1
+      virtual_network: myVnet
+      subnet: mySubnet
+      security_group: myNetworkSecurityGroup
+      ip_configurations:
+        - name: ipconfig1
+          primary: True
+          load_balancer_backend_address_pools:
+            - name: backendaddrpool0
+              load_balancer: myloadbalancer
+
+  - name: Create virtual network inteface card
+    azure_rm_networkinterface:
+      resource_group: "{{ RG }}"
+      name: myNIC2
+      virtual_network: myVnet
+      subnet: mySubnet
+      security_group: myNetworkSecurityGroup
+      ip_configurations:
+        - name: ipconfig1
+          primary: True
+          load_balancer_backend_address_pools:
+            - name: backendaddrpool0
+              load_balancer: myloadbalancer
+
+  - name: Create VM1
+    azure_rm_virtualmachine:
+      resource_group: "{{ RG }}"
+      name: myVM1
+      availability_set: myavailabilityset
+      vm_size: "{{ vm_size }}"
+      managed_disk_type: Premium_LRS
+      os_type: Windows
+      admin_username: azureuser
+      admin_password: Pa$$w0rd
+      network_interfaces: myNIC1
+      image:
+        offer: "{{ offer }}"
+        publisher: "{{ publisher }}"
+        sku: "{{ sku }}"
+        version: "{{ version }}"
+      data_disks:
+        - lun: 0
+          disk_size_gb: 64
+          managed_disk_type: Premium_LRS
+
+  - name: Create VM2
+    azure_rm_virtualmachine:
+      resource_group: "{{ RG }}"
+      name: myVM2
+      availability_set: myavailabilityset
+      vm_size: "{{ vm_size }}"
+      managed_disk_type: Premium_LRS
+      os_type: Windows
+      admin_username: azureuser
+      admin_password: Pa$$w0rd
+      network_interfaces: myNIC2
+      image:
+        offer: "{{ offer }}"
+        publisher: "{{ publisher }}"
+        sku: "{{ sku }}"
+        version: "{{ version }}"
+      data_disks:
+        - lun: 0
+          disk_size_gb: 64
+          managed_disk_type: Premium_LRS
+
+  - name: create Azure vm extension to install IIS 1a
+    azure_rm_virtualmachine_extension:
+      name: IIS-config1a
+      resource_group: "{{ RG }}"
+      virtual_machine_name: myVM1
+      publisher: Microsoft.Compute
+      virtual_machine_extension_type: CustomScriptExtension
+      type_handler_version: 1.9
+      settings: '{"commandToExecute": "powershell Add-WindowsFeature Web-Server; powershell mkdir \"C:\\inetpub\\hello\"; powershell Add-Content -Path \"C:\\inetpub\\hello\\Default.htm\" -Value Hello_Word_from_VM1"}'
+      auto_upgrade_minor_version: true
+
+  - name: Delete VM Extension 1a
+    azure_rm_virtualmachine_extension:
+      name: IIS-config1a
+      resource_group: "{{ RG }}"
+      virtual_machine_name: myVM1
+      state: absent
+
+  - name: create Azure vm extension to install IIS 1b
+    azure_rm_virtualmachine_extension:
+      name: IIS-config1b
+      resource_group: "{{ RG }}"
+      virtual_machine_name: myVM1
+      publisher: Microsoft.Compute
+      virtual_machine_extension_type: CustomScriptExtension
+      type_handler_version: 1.9
+      settings: '{"commandToExecute": "powershell New-IISSite -Name \"Hello word!\" -BindingInformation \"*:8080:\" -PhysicalPath \"C:\\inetpub\\hello\"; powershell New-NetFirewallRule -DisplayName \"HTTP(S) Inbound\" -Profile Any -Direction Inbound -Action Allow -Protocol TCP -LocalPort @(\"8080\")"}'
+      auto_upgrade_minor_version: true
+
+
+  - name: create Azure vm extension to install IIS 2a
+    azure_rm_virtualmachine_extension:
+      name: IIS-config2a
+      resource_group: "{{ RG }}"
+      virtual_machine_name: myVM2
+      publisher: Microsoft.Compute
+      virtual_machine_extension_type: CustomScriptExtension
+      type_handler_version: 1.9
+      settings: '{"commandToExecute": "powershell Add-WindowsFeature Web-Server; powershell mkdir \"C:\\inetpub\\hello\"; powershell Add-Content -Path \"C:\\inetpub\\hello\\Default.htm\" -Value Hello_Word_from_VM2"}'
+      auto_upgrade_minor_version: true
+
+  - name: Delete VM Extension 2a
+    azure_rm_virtualmachine_extension:
+      name: IIS-config2a
+      resource_group: "{{ RG }}"
+      virtual_machine_name: myVM2
+      state: absent
+
+
+  - name: create Azure vm extension to install IIS 2b
+    azure_rm_virtualmachine_extension:
+      name: IIS-config2b
+      resource_group: "{{ RG }}"
+      virtual_machine_name: myVM2
+      publisher: Microsoft.Compute
+      virtual_machine_extension_type: CustomScriptExtension
+      type_handler_version: 1.9
+      settings: '{"commandToExecute": "powershell New-IISSite -Name \"Hello word!\" -BindingInformation \"*:8080:\" -PhysicalPath \"C:\\inetpub\\hello\"; powershell New-NetFirewallRule -DisplayName \"HTTP(S) Inbound\" -Profil
+e Any -Direction Inbound -Action Allow -Protocol TCP -LocalPort @(\"8080\")"}'
+      auto_upgrade_minor_version: true
+
