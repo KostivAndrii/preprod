@@ -1,0 +1,4 @@
+[DB_SERVER]
+ubuntudb ansible_host=40.113.106.209
+[WEB_SERVER]
+ubuntuweb ansible_host=40.113.108.234

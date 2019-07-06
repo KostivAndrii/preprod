@@ -1,0 +1,14 @@
+---
+- name: MongoDB server
+  hosts: DB_SERVER
+  become: yes
+
+  roles:
+     - dbserver
+
+- name: web server
+  hosts: WEB_SERVER
+  become: yes
+
+  roles:
+     - webserver

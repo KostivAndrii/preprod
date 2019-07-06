@@ -1,0 +1,53 @@
+---
+# tasks file for dbserver---
+  - name: add apt_key 
+    shell: "apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 9DA31620334BD75D9DCB49F368818C72E52529D4"
+
+  - name: add apt source
+    lineinfile: 
+      line: "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/4.0 multiverse" 
+      dest: /etc/apt/sources.list.d/mongodb-org-4.0.list 
+      state: present 
+      create: yes
+
+  - name: apt update
+    apt:
+      upgrade: yes
+      update_cache: yes 
+
+  - apt:
+      name: mongodb-org
+      state: latest
+
+  - name: monogodb config
+    lineinfile:
+      path: /etc/mongod.conf 
+      regexp: 'bindIp: 127\.0\.0\.1'
+      line: '  bindIp: 0.0.0.0'
+
+  - name: start mongoDB service and enabled system start
+    service:
+      name: mongod
+      state: started
+      enabled: yes
+
+  - name: add MongoDB IP in hosts
+    lineinfile: 
+      path: /etc/hosts
+      line: "192.168.33.100  mongodb  mongodb"
+
+  - name: copy database backup
+    copy:
+      src: backup.tar
+      dest: /home/wikijs/
+      mode: 777
+
+  - name: unpack database backup
+    unarchive:
+      src: backup.tar
+      dest: /home/wikijs/
+
+  - name: restore database from backup
+    command: "mongorestore /home/wikijs/backup"
+
+
