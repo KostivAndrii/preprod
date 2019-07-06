@@ -1,0 +1,27 @@
+# Enable basic authentication on the FTP site Hello_World_FTP
+$FTPSitePath = 'IIS:\Sites\{{ FTPSiteName }}\'
+$BasicAuth = 'ftpServer.security.authentication.basicAuthentication.enabled'
+$FTPUserGroupName = "FTP Users"
+Set-ItemProperty -Path $FTPSitePath -Name $BasicAuth -Value $True
+# Add an authorization read rule for FTP Users.
+$Param = @{
+    Filter   = "/system.ftpServer/security/authorization"
+    Value    = @{
+        accessType  = "Allow"
+        roles       = "$FTPUserGroupName"
+        permissions = 3
+    }
+    PSPath   = 'IIS:\'
+    Location = '{{ FTPSiteName }}'
+}
+Add-WebConfiguration @param
+
+$SSLPolicy = @(
+    'ftpServer.security.ssl.controlChannelPolicy',
+    'ftpServer.security.ssl.dataChannelPolicy'
+)
+Set-ItemProperty -Path $FTPSitePath -Name $SSLPolicy[0] -Value $false
+Set-ItemProperty -Path $FTPSitePath -Name $SSLPolicy[1] -Value $false
+
+
+Restart-WebItem "IIS:\Sites\{{ FTPSiteName }}\" -Verbose

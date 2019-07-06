@@ -1,0 +1,77 @@
+---                                                                
+- hosts: all                                                       
+  become: yes                                                      
+  gather_facts: false
+                                                                   
+  handlers:                                                        
+    - name: nginx restart
+      service: name=nginx state=restarted enabled=yes
+                                                                  
+  tasks:                                                           
+    - name: Install python-minimal for Ansible
+      raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal)
+      register: output
+      changed_when: output.stdout != ""
+
+    - name: Gathering Facts
+      setup:
+
+    - name: Install EPEL release for nginx
+      yum: name=epel-release state=present
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Install yum packages python-pip, zip, unzip, net-tools, nginx
+      yum: 
+        name: "{{ pkg_list  }}"
+        state: installed 
+        update_cache: true
+      notify:
+          - nginx restart
+      when: ansible_facts['os_family'] == 'RedHat'
+                                                                   
+    - name: sudo add-apt-repository ppa:nginx/stable
+      apt_repository:
+        repo: ppa:nginx/stable
+        state: present
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Install apt-get packages python-pip, zip, unzip, net-tools, nginx
+      apt: 
+        name: "{{ pkg_list }}"
+        state: latest
+        update_cache: yes
+        cache_valid_time: 3600
+      notify:
+          - nginx restart
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - file:
+        path: '/opt/nginx/{{ item }}'
+        state: directory
+        mode: 0755
+      loop: "{{ dir_list }}"
+
+#    - name: copying nginx.conf (j2)
+#      template:
+#        src: nginx.conf.j2 
+#        dest: /etc/nginx/nginx.conf
+#        mode: 0644
+#      notify: nginx restart
+
+    - name: force all notified handlers to run at this point, not waiting for normal sync points
+      meta: flush_handlers
+
+    - name: ensure port is open
+      wait_for:
+        host: 0.0.0.0
+        port: 80
+        delay: 5
+        state: started
+
+    - name: "check accessibility http://tomcat_servers:{{ tomcat_server_port }}/sample/"
+      uri:
+        url: http://{{ ansible_host }}
+      register: HTTP_code
+
+    - debug: var=HTTP_code.status
+

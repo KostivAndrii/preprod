@@ -1,0 +1,159 @@
+---
+- name: Create Azure VM
+  hosts: localhost
+  connection: local
+  environment:
+    AZURE_CLIENT_ID: "{{ az_client_id }}"
+    AZURE_SECRET: "{{ az_secret }}"
+    AZURE_SUBSCRIPTION_ID: "{{ az_subscription_id }}"
+    AZURE_TENANT: "{{ az_tenant }}"
+
+
+  vars:
+    RG            : RG001
+    location      : francecentral
+    offer         : WindowsServer
+    publisher     : MicrosoftWindowsServer
+    sku           : 2016-Datacenter
+    version       : latest
+    vm_size       : Standard_D2s_v3
+
+    RDPPort       : 3389
+    WinRMPort     : 5986
+    HTTPPort      : 80
+    HTTP2Port     : 8080
+    MSSQLPort     : 1433
+    FTPPort       : 21
+    os_type       : Windows
+    admin_user    : azureuser
+    admin_pass    : !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          65393163353539636438353465633066356336393832363739353666373765363038363135353261
+          6562636562313665636562646433366531333134646366340a383266326161313066383234326361
+          31663035666439303135303138333837653232633364633134363634363138323736333638393235
+          3766633363313933610a636534346437343561356661393037363964303235323030633332363466
+          3763
+    man_disk_type : Premium_LRS
+    man_disk_size : 64
+    vNet_IP       : "10.0.0.0/16"
+    sNet_IP       : "10.0.1.0/24"
+    vNet_name     : "{{ RG }}_vNet"
+    PIP_name      : "{{ RG }}_PIP"
+    NSG_name      : "{{ RG }}_NSG"
+    NIC1_name     : "{{ RG }}_NIC1"
+    VM1_name      : "{{ RG }}_VM1"
+
+  tasks:
+  - name: Create resource group
+    azure_rm_resourcegroup:
+      name: "{{ RG }}"
+      location: "{{ location }}"
+
+  - name: Create virtual network
+    azure_rm_virtualnetwork:
+      resource_group: "{{ RG }}"
+      name: "{{ vNet_name }}"
+      address_prefixes: "{{ vNet_IP }}"
+
+  - name: Add subnet
+    azure_rm_subnet:
+      resource_group: "{{ RG }}"
+      name: mySubnet
+      address_prefix: "{{ sNet_IP }}"
+      virtual_network: "{{ vNet_name }}"
+
+  - name: Create public IP address
+    azure_rm_publicipaddress:
+      resource_group: "{{ RG }}"
+      allocation_method: Static
+      name: "{{ PIP_name }}"
+    register: output_ip_address
+
+  - name: Dump public IP for VM which will be created
+    debug:
+      msg: "The public IP is {{ output_ip_address.state.ip_address }}."
+
+  - name: Create Network Security Group that allows RDP and WinRM 
+    azure_rm_securitygroup:
+      resource_group: "{{ RG }}"
+      name: "{{ NSG_name }}"
+      rules:
+        - name: Allow_RDP
+          protocol: Tcp
+          destination_port_range: "{{ RDPPort }}"
+          access: Allow
+          priority: 1000
+          direction: Inbound
+        - name: Allow_WinRM
+          protocol: Tcp
+          destination_port_range: "{{ WinRMPort }}"
+          access: Allow
+          priority: 1001
+          direction: Inbound
+        - name: Allow_HTTP
+          protocol: Tcp
+          destination_port_range: "{{ HTTPPort }}"
+          access: Allow
+          priority: 1002
+          direction: Inbound
+        - name: Allow_HTTP_8080
+          protocol: Tcp
+          destination_port_range: "{{ HTTP2Port }}"
+          access: Allow
+          priority: 1003
+          direction: Inbound
+        - name: Allow_MSSQLPort
+          protocol: Tcp
+          destination_port_range: "{{ MSSQLPort }}"
+          access: Allow
+          priority: 1004
+          direction: Inbound
+        - name: Allow_FTP
+          protocol: Tcp
+          destination_port_range: "{{ FTPPort }}"
+          access: Allow
+          priority: 1005
+          direction: Inbound
+
+  - name: Create virtual network inteface card
+    azure_rm_networkinterface:
+      resource_group: "{{ RG }}"
+      name: "{{ NIC1_name }}"
+      virtual_network: "{{ vNet_name }}"
+      subnet: mySubnet
+      security_group: "{{ NSG_name }}"
+      ip_configurations:
+        - name: ipconfig1
+          public_ip_address_name: "{{ PIP_name }}"
+          primary: True
+
+
+  - name: Create VM1
+    azure_rm_virtualmachine:
+      resource_group: "{{ RG }}"
+      name: "{{ VM1_name }}"
+      vm_size: "{{ vm_size }}"
+      short_hostname: "{{ RG }}VM1"
+      os_type: "{{ os_type }}" 
+      admin_username: "{{ admin_user }}"
+      admin_password: "{{ admin_pass }}"
+      network_interfaces: "{{ NIC1_name }}"
+      image:
+        offer: "{{ offer }}"
+        publisher: "{{ publisher }}"
+        sku: "{{ sku }}"
+        version: "{{ version }}"
+
+  - name: create Azure vm extension to install WinRM
+    azure_rm_virtualmachine_extension:
+      name: WinRM
+      location: "{{ location }}"
+      resource_group: "{{ RG }}"
+      virtual_machine_name: "{{ VM1_name }}"
+      publisher: Microsoft.Compute
+      virtual_machine_extension_type: CustomScriptExtension
+      type_handler_version: 1.9
+#      settings: '{"commandToExecute": "powershell Invoke-WebRequest -Uri https://raw.githubusercontent.com/ansible/ansible/devel/examples/scripts/ConfigureRemotingForAnsible.ps1 -OutFile winrm.ps1; .\winrm.ps1"}'
+      settings: '{"commandToExecute": "powershell Invoke-Expression ((New-Object System.Net.Webclient).DownloadString(''https://raw.githubusercontent.com/ansible/ansible/devel/examples/scripts/ConfigureRemotingForAnsible.ps1''))"}'
+      auto_upgrade_minor_version: true
+

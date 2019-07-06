@@ -1,0 +1,12 @@
+# Lines beginning with a # are comments, and are only included for
+# illustration. These comments are overkill for most inventory files.
+
+# Application servers
+[win]
+win2016 ansible_host=20.188.33.152
+# Variables that will be applied to all servers
+[all:vars]
+ansible_user = azureuser
+ansible_port = 5986
+ansible_connection = winrm
+ansible_winrm_server_cert_validation = ignore

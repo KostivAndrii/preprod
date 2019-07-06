@@ -1,0 +1,86 @@
+---
+- hosts: all
+
+  tasks:
+  - name: ping
+    win_ping: 
+
+#  - name: ensure 7-Zip is installed via Chocolatey
+#    win_chocolatey:
+#      name: 7zip
+#      state: present
+
+#  - name: ensure 7-Zip is not installed via Chocolatey
+#    win_chocolatey:
+#      name: 7zip
+#      state: absent
+
+  - name: Install IIS Web-Server with sub features and management tools
+    win_feature:
+      name: Web-Server
+      state: present
+      include_sub_features: yes
+      include_management_tools: yes
+    register: win_feature
+
+  - name: reboot if installing Web-Server feature requires it
+    win_reboot:
+    when: win_feature.reboot_required
+
+  - name: Create c:\temp
+    win_file:
+      path: C:\temp\
+      state: directory
+
+  - name: Create /mnt/c/inetpub/hello/ 
+    win_file:
+      path: C:\inetpub\hello\
+      state: directory
+
+  - name: copying Default.htm (j2)
+    template:
+      src: Default.htm.j2
+      dest: c:\inetpub\hello\Default.htm 
+
+  - name: Hello world! IIS site
+    win_iis_website:
+      name: Hello_World
+      state: started
+      port: 8080
+      ip: '*'
+      physical_path: C:\inetpub\hello
+      parameters: logfile.directory:C:\inetpub\hello\logs
+    register: website
+
+  - name: Firewall rule to allow RDP on TCP port 8080
+    win_firewall_rule:
+      name: HTTP2
+      localport: 8080
+      action: allow
+      direction: in
+      protocol: tcp
+      profiles: [domain, private, public]
+      state: present
+      enabled: yes
+
+# install/uninstall with win_package
+  - name: download the 7-Zip package
+    win_get_url:
+      url: https://datapacket.dl.sourceforge.net/project/sevenzip/7-Zip/18.05/7z1805-x64.msi
+      timeout: 20
+      force: no
+      dest: C:\temp\7z.msi
+
+  - name: ensure 7-Zip is installed via win_package
+    win_package:
+      path: C:\temp\7z.msi
+#      product_id: "{23170F69-40C1-2702-1805-000001000000}"
+#      arguments: /S
+#      state: absent
+      state: present
+
+#  - name: ensure 7-Zip is not installed via win_package
+#    win_package:
+#      path: C:\temp\7z.msi
+#      state: absent
+

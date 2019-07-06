@@ -1,0 +1,7 @@
+---
+aws_access_key: "{{ vault_aws_access_key }}"
+aws_secret_key: "{{ vault_aws_secret_key }}"
+az_client_id: "{{ az_client_id }}"
+az_secret: "{{ az_secret }}"
+az_subscription_id: "{{ az_subscription_id }}"
+az_tenant: "{{ az_tenant }}"

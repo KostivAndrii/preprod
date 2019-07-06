@@ -1,0 +1,133 @@
+---
+- hosts: all
+  gather_facts: True
+  vars:
+   FTPSiteName: Hello_World_FTP
+   ansible_password: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          65393163353539636438353465633066356336393832363739353666373765363038363135353261
+          6562636562313665636562646433366531333134646366340a383266326161313066383234326361
+          31663035666439303135303138333837653232633364633134363634363138323736333638393235
+          3766633363313933610a636534346437343561356661393037363964303235323030633332363466
+          3763
+
+  tasks:
+  - name: ping
+    win_ping: 
+
+  - name: Install IIS Web-FTP-Server with sub features 
+    win_feature:
+      name: Web-FTP-Server
+      state: present
+      include_sub_features: yes
+    register: win_feature
+
+  - name: Install IIS Web-Server with sub features and management tools
+    win_feature:
+      name: Web-Server
+      state: present
+      include_sub_features: yes
+      include_management_tools: yes
+    register: win_feature
+
+  - name: reboot if installing Web-Server feature requires it
+    win_reboot:
+    when: win_feature.reboot_required
+
+  - name: Create c:\temp
+    win_file:
+      path: C:\temp\
+      state: directory
+
+  - name: Create /mnt/c/inetpub/hello/ 
+    win_file:
+      path: C:\inetpub\FTPRoot\
+      state: directory
+
+  - name: copying Default.htm (j2)
+    template:
+      src: Default.htm.j2
+      dest: c:\inetpub\FTPRoot\Default.htm 
+
+  - name: Create FTP Users group
+    win_group:
+      name: "FTP Users"
+      description: "Members of this group can connect through FTP"
+      state: present
+
+  - name: Create FTPUser user
+    win_user:
+      name: FTPUser
+      password: P@ssword123
+      state: present
+      groups:
+        - "FTP Users"
+
+  - name: allow iis group access to site path
+    win_acl:
+      path: c:\inetpub\FTPRoot 
+      user: FTPUser
+      rights: 'ReadAndExecute' 
+      type: 'Allow'
+      inherit: 'ContainerInherit,ObjectInherit'
+      propagation: 'None'
+
+  - name: Hello world! IIS FTP site
+    win_iis_website:
+      name: "{{ FTPSiteName }}"
+      state: started
+      port: 8080
+      ip: '*'
+      physical_path: C:\inetpub\FTPRoot
+      parameters: logfile.directory:C:\inetpub\FTPRoot\logs
+    register: website
+
+  - name: remove a HTTP binding on port 8080
+    win_iis_webbinding:
+      name: "{{ FTPSiteName }}"
+#      protocol: http
+      port: 8080
+      state: absent
+
+  - name: Add a FTP binding on port 21
+    win_iis_webbinding:
+      name: "{{ FTPSiteName }}"
+      protocol: ftp
+      port: 21
+      state: present
+
+  - name: check downloaded ftp.ps1 file exists
+    win_stat:
+       path: c:\temp\ftp.ps1
+    register: ftp_ps_file
+
+  - debug: var=ftp_ps_file
+
+  - name: copying FTP.ps1 (j2)
+    template:
+      src: ftp.ps1.j2
+      dest: c:\temp\ftp.ps1
+    register: ftp_script
+#    when: not ftp_ps_file.stat.exists
+
+  - debug: var=ftp_script
+
+  - name: run ftp_script
+    win_shell: c:\temp\ftp.ps1
+    register: ftp_script
+#    when: not ftp_ps_file.stat.exists
+
+  - debug: var=ftp_script
+
+  - name: Firewall rule to allow FTP port 21
+    win_firewall_rule:
+      name: FTP
+      localport: 21
+      action: allow
+      direction: in
+      protocol: tcp
+      profiles: [domain, private, public]
+      state: present
+      enabled: yes
+
+

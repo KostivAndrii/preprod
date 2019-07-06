@@ -1,0 +1,17 @@
+---
+- name: tomcat servers on port 8888
+  hosts: tomcat
+  become: yes
+  gather_facts: true
+
+  roles:
+     - backend
+
+- name: nginx proxy server
+  hosts: lb
+  become: yes
+  gather_facts: False
+
+  roles:
+     - frontend
+

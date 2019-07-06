@@ -1,0 +1,96 @@
+---
+# tasks file for backend
+- name: Update yum cache if needed
+  yum: update_cache=yes
+
+- name: Install java-openjdk
+  yum: name=java-1.7.0-openjdk-devel state=present
+
+- name: Add group tomcat
+  group: name={{ tomcat_user }} state=present
+
+- name: Add user tomcat
+  user: name={{ tomcat_user }} group={{ tomcat_group }}
+
+- name: Create instalation folder
+  file:
+    path: "{{ tomcat_dest }}"
+    group: "{{ tomcat_group }}"
+    state: directory
+
+- name: Get tomcat
+  get_url:
+    url: "{{ tomcat_binary_url }}"
+    dest: "{{ tomcat_arch }}"
+
+- name: Unarchive tomcat
+  unarchive:
+    src: "{{ tomcat_arch }}"
+    dest: "{{ tomcat_dest }}"
+    owner: "{{ tomcat_user }}"
+    group: "{{ tomcat_group }}"
+    mode: 0755
+    extra_opts: [--strip-components=1]
+    remote_src: yes
+  when: update_tomcat
+
+- name: copying service file
+  copy:
+    src: tomcat.service
+    dest: "/etc/systemd/system/"
+    owner: root
+    mode: 0644
+
+- name: start & enable tomcat service
+  service: name=tomcat state=started enabled=yes
+
+- name: copying server.xml.j2 tomcat-users.xml (j2)
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: "{{ tomcat_user }}"
+    group: "{{ tomcat_group }}"
+    mode: 0640
+  loop: 
+    - { src: 'tomcat-users.xml.j2', dest: "{{ tomcat_dest }}/conf/tomcat-users.xml" }
+    - { src: 'server.xml.j2', dest: "{{ tomcat_dest }}/conf/server.xml" }
+  notify: tomcat restart
+
+- name: copying Manager app and host-manager context.xml
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: "{{ tomcat_user }}"
+    group: "{{ tomcat_group }}"
+    mode: 0640
+  loop:
+    - { src: "context.xml", dest: "{{ tomcat_dest }}/webapps/manager/META-INF/" }
+    - { src: "context.xml", dest: "{{ tomcat_dest }}/webapps/host-manager/META-INF/" } 
+  notify: tomcat restart
+
+- name: Download and deploy sample.war
+  get_url:
+    url: "{{ tomcat_sample_url }}"
+    dest: "{{ tomcat_dest }}/webapps"
+    owner: "{{ tomcat_user }}"
+    group: "{{ tomcat_group }}"
+    mode: 0440
+  notify: tomcat restart
+
+- name: force all notified handlers to run at this point, not waiting for normal sync points
+  meta: flush_handlers
+
+- name: ensure port is open
+  wait_for:
+    host: 0.0.0.0
+    port: "{{ tomcat_server_port }}"
+    delay: 1
+    state: started
+
+- name: "check accessibility http://tomcat_servers:{{ tomcat_server_port }}/sample/"
+  uri:
+    url: http://{{ ansible_host }}:{{ tomcat_server_port }}/sample/
+  register: HTTP_code
+
+- debug: var=HTTP_code.status
+

@@ -1,0 +1,6 @@
+---
+# handlers file for backend
+- name: tomcat restart
+  service: name=tomcat state=restarted
+  sudo: True
+

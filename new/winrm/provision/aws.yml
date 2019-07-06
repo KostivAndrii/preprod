@@ -1,0 +1,70 @@
+---
+- name: Create AWS VM
+  hosts: local
+  connection: local
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
+    AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
+
+  vars:
+    ec2_region    : eu-west-1
+#    ec2_region    : eu-central-1
+    instances_keypair: keypair-name
+    instance_type : t2.micro
+    ami_id        : ami-0dad95819a9372f76
+#    ami_id        : ami-014b173b0f52c004e
+    RDP_SG        : 'RDP'
+    WinRM_SG      : 'WinRM'
+    RDPPort       : 3389
+    WinRMPort     : 5986
+    HTTPPort      : 80
+    HTTP2Port     : 8080
+    MSSQLPort     : 1433
+    FTPPort       : 21
+    vNet_IP       : "10.0.0.0/16"
+    sNet_IP       : "10.0.1.0/24"
+
+  tasks:
+  - name: create a new ec2 key pair, returns generated private key
+    ec2_key:
+      name: "{{instances_keypair}}"
+      force: false
+      region: "{{ ec2_region }}"
+
+  - name: Create RDP SecGroup
+    ec2_group:
+      name: "{{ RDP_SG }}"
+      description: "RDP"
+      rules:
+        - proto: tcp
+          from_port: "{{ RDPPort }}"
+          to_port: "{{ RDPPort }}"
+          cidr_ip: 0.0.0.0/0
+      region: "{{ ec2_region }}"
+
+  - name: Create WinRM SecGroup
+    ec2_group:
+      name: "{{ WinRM_SG }}"
+      description: "WinRM"
+      rules:
+        - proto: tcp
+          from_port: "{{ WinRMPort }}"
+          to_port: "{{ WinRMPort }}"
+          cidr_ip: 0.0.0.0/0
+      region: "{{ ec2_region }}"
+
+  - name: Launch instances
+    ec2: 
+      region: "{{ ec2_region }}"
+      group:  ['RDP','WinRM']
+      instance_type: "{{ instance_type }}"
+      image: "{{ ami_id }}"
+      assign_public_ip: true
+#      vpc_subnet_id: subnet-0699fd60
+      keypair: "{{instances_keypair}}"
+      instance_tags: 
+        Name: WINRM
+      exact_count: 1
+      count_tag: 
+        Name: WINRM
+    register: ec2

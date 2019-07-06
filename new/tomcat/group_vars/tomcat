@@ -1,0 +1,16 @@
+---
+
+tomcat_group:  tomcat
+tomcat_user:   tomcat
+
+tomcat_version: 8.5.35
+tomcat_binary_url:  "http://apache.mirrors.ionfish.org/tomcat/tomcat-8/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
+tomcat_sample_url:  "https://tomcat.apache.org/tomcat-5.5-doc/appdev/sample/sample.war"
+tomcat_arch: "/opt/apache-tomcat-{{ tomcat_version }}.tar.gz"
+tomcat_dest: /opt/tomcat/
+tomcat_server_port: 8888
+
+tomcat_admin_username: admin
+tomcat_admin_password: password
+
+update_tomcat: true
